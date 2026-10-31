@@ -39,3 +39,13 @@
 - SQL включает RLS без разрешающих политик для таблиц веб-сессий; они намеренно закрыты для `anon/authenticated`. **RLS для будущих приватных стен и крашей ещё не внедрена**, поскольку эти таблицы/ACL не определены. Нельзя безопасно обещать защиту ещё не подключённых API.
 - Не отправляйте `DATABASE_URL`, Client Secret или session cookie в переписку или публичные логи.
 - Не запускались интеграционные тесты с реальным Supabase/Discord, необходима проверка после развёртывания.
+
+
+## UI 2.2 additions (no database migration)
+- Dashboard: live stats unchanged; quick links, explicit XP-as-total card (not a fabricated threshold).
+- Night Table: `social.html` independent demo; uses no Discord private data and makes no API writes.
+- Commands: 10 per page, searchable/filterable with pagination.
+- Mobile: larger targets, responsive panels; no new backend privileges.
+- Landing: direct social-demo navigation and separate social JS, not loaded on homepage.
+
+Note: the pending `sql/001_web_security.sql` migration is still required before deploying the Python server in this archive. If your live database has not yet been migrated, upload only the `site/` directory changes, keeping the current live `server/app.py` unchanged. Do not upload this complete archive to replace a working server until migration is complete.
