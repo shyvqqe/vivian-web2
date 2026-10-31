@@ -72,3 +72,5 @@ def keep_alive():
                 target=run, name="vivian-keepalive", daemon=True
             )
             _server_thread.start()
+            )
+            _server_thread.start()
