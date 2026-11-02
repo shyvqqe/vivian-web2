@@ -24,3 +24,20 @@ html{scroll-padding-top:84px}body{background:var(--bg)!important;color:var(--ink
 .vivian-pointer{position:fixed;left:0;top:0;width:16px;height:16px;pointer-events:none;z-index:2147483646;border:1.5px solid #b8a4d9;border-radius:3px;transform:translate3d(-100px,-100px,0) translate(-50%,-50%);will-change:transform,width,height,border-radius;transition:width .2s,border-radius .2s,height .2s,background .2s,opacity .2s;opacity:0;background:rgba(184,164,217,.06)}.vivian-pointer.is-visible{opacity:1}.vivian-pointer.is-hover{width:40px;height:40px;border-radius:10px;background:rgba(184,164,217,.15)}.vivian-pointer.is-press{width:11px;height:11px}
 @media(max-width:750px){.feature-row{grid-template-columns:38px 1fr!important}.header-right{gap:9px}.header .small-cta{display:none}.web2-header-link{display:none!important}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;transition-duration:.001ms!important}.vivian-pointer{display:none!important}}
+
+/* Vivian 2.4 — responsive cursor, richer weather, motion polish */
+.vivian-pointer { border-width: 2px; box-shadow:0 0 10px rgba(184,164,217,.15); transition:width .14s ease,height .14s ease,border-radius .14s ease,background .14s ease,opacity .12s ease; }
+.vivian-pointer.is-hover { box-shadow:0 0 18px rgba(184,164,217,.23); }
+@media (prefers-reduced-motion:no-preference) {
+  .vivian-reveal-on { animation:vivian-reveal .62s cubic-bezier(.21,.85,.26,1) both; animation-delay:var(--vivian-motion-delay,0ms); }
+  @keyframes vivian-reveal { from {opacity:.30;transform:translate3d(0,20px,0)} to {opacity:1;transform:translate3d(0,0,0)} }
+  .extra-card,.dash-card,.music-preview,.command-browser,.feature-row,.team-badge,.scenario-box,.preview-compare { transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease,border-color .2s ease,background-color .2s ease; }
+  .extra-card:hover,.dash-card:hover,.music-preview:hover,.team-badge:hover { transform:translateY(-4px);box-shadow:0 16px 44px rgba(0,0,0,.27)!important;border-color:rgba(184,164,217,.25)!important; }
+  .feature-row:hover { transform:translateX(4px); }
+  .header .nav a,.nav a { transition:color .18s ease,opacity .18s ease; }
+  .primary-btn:active,.small-cta:active,.btn:active,.wm-controls button:active { transform:scale(.97)!important; }
+  .primary-btn:hover,.small-cta:hover,.btn:hover { box-shadow:0 9px 22px rgba(184,164,217,.15)!important; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .vivian-reveal-on { animation:none!important; }
+}

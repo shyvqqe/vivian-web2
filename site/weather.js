@@ -46,17 +46,17 @@
     return {
       x: Math.random() * w,
       y: randomY ? Math.random() * h : -20 - Math.random() * 100,
-      size: isSnow ? 0.8 + Math.random() * 1.7 : 9 + Math.random() * 11,
-      speed: isSnow ? 0.22 + Math.random() * 0.55 : 3.1 + Math.random() * 3.0,
+      size: isSnow ? 1.4 + Math.random() * 2.3 : 9 + Math.random() * 11,
+      speed: isSnow ? 0.48 + Math.random() * 0.75 : 3.1 + Math.random() * 3.0,
       drift: isSnow ? -0.13 + Math.random() * 0.25 : 0.4 + Math.random() * 0.5,
-      alpha: isSnow ? 0.17 + Math.random() * 0.26 : 0.06 + Math.random() * 0.095,
+      alpha: isSnow ? 0.52 + Math.random() * 0.35 : 0.06 + Math.random() * 0.095,
       phase: Math.random() * Math.PI * 2
     };
   }
   function seedParticles() {
     const area = w * h;
     const target = mode === 'snow'
-      ? Math.max(15, Math.min(54, Math.round(area / 29000)))
+      ? Math.max(55, Math.min(145, Math.round(area / 10500)))
       : Math.max(19, Math.min(70, Math.round(area / 18500)));
     particles = Array.from({ length: target }, () => createParticle());
   }
@@ -73,7 +73,7 @@
       }
       const t = particles[i];
       if (isSnow) {
-        ctx.fillStyle = `rgba(204,231,233,${t.alpha})`;
+        ctx.fillStyle = `rgba(239,244,255,${t.alpha})`;
         ctx.beginPath();
         ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
         ctx.fill();
