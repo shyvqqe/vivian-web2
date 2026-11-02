@@ -6,12 +6,14 @@ import hashlib
 import ipaddress
 import os
 import secrets
+import json
 import time
 from pathlib import Path
 from urllib.parse import urlencode
 
 import httpx
 import psycopg
+from cryptography.fernet import Fernet, InvalidToken
 from flask import Flask, abort, jsonify, redirect, request, send_from_directory
 
 SITE = Path(__file__).resolve().parents[1] / 'site'
@@ -23,6 +25,18 @@ COOKIE_SECURE = os.getenv('LOCAL_DEV') != '1'
 SESSION_TTL = 60 * 60 * 12
 PENDING_TTL = 600
 COOKIE_NAME = 'vivian_session'
+GUILDS_SCOPE = 'identify guilds'
+TOKEN_KEY = os.getenv('OAUTH_TOKEN_ENCRYPTION_KEY', '')
+
+def token_cipher():
+    if not TOKEN_KEY:
+        return None
+    try:
+        return Fernet(TOKEN_KEY.encode('ascii'))
+    except (ValueError, TypeError):
+        app.logger.error('Invalid OAUTH_TOKEN_ENCRYPTION_KEY')
+        return None
+
 
 
 def db(sql, params=(), *, fetch='one'):
@@ -135,7 +149,7 @@ def login():
         return jsonify(error='Login temporarily unavailable'), 503
     query = urlencode({'client_id': CLIENT_ID, 'response_type': 'code',
                        'redirect_uri': BASE_URL + '/auth/callback',
-                       'scope': 'identify', 'state': state, 'prompt': 'consent'})
+                       'scope': GUILDS_SCOPE, 'state': state, 'prompt': 'consent'})
     return cookie(redirect('https://discord.com/oauth2/authorize?' + query), sid)
 
 
@@ -171,19 +185,24 @@ def callback():
                               headers={'Authorization': 'Bearer ' + access_token})
             user.raise_for_status()
             u = user.json()
+            granted = set(str(token.json().get('scope','')).split())
         if not str(u.get('id', '')).isdigit():
             raise ValueError('Invalid Discord user ID')
     except (httpx.HTTPError, KeyError, ValueError):
         app.logger.warning('Discord OAuth exchange failed')
         return jsonify(error='Discord OAuth failed'), 502
+    cipher = token_cipher()
+    # Never persist access tokens unencrypted; if configuration is missing,
+    # the login still works but guild listing reports a configuration issue.
+    access_blob = cipher.encrypt(access_token.encode('utf-8')).decode('ascii') if cipher and 'guilds' in granted else None
     new_sid = secrets.token_urlsafe(32)
     try:
         db('''INSERT INTO vivian_web.sessions
-              (session_hash,kind,discord_id,username,avatar,expires_at)
-              VALUES (%s,'user',%s,%s,%s,now()+interval '12 hours')''',
+              (session_hash,kind,discord_id,username,avatar,discord_access_token_enc,expires_at)
+              VALUES (%s,'user',%s,%s,%s,%s,now()+interval '12 hours')''',
            (digest(new_sid), int(u['id']),
             (u.get('global_name') or u.get('username') or 'Discord user')[:150],
-            u.get('avatar'),), fetch='none')
+            u.get('avatar'), access_blob), fetch='none')
     except psycopg.Error:
         app.logger.exception('Cannot save login session')
         return jsonify(error='Login temporarily unavailable'), 503
@@ -235,6 +254,63 @@ def me():
     response = jsonify(result)
     response.headers['Cache-Control'] = 'no-store'
     return response
+
+
+@app.get('/api/guilds')
+def guilds():
+    # Show only Discord guilds the logged-in user can manage.
+
+    # This does not imply the bot is installed or enable server settings writes.
+    try:
+        u = current_session()
+        if not u:
+            return jsonify(error='Authentication required'), 401
+        row = db('''SELECT discord_access_token_enc FROM vivian_web.sessions
+                    WHERE session_hash=%s AND kind='user' AND expires_at > now()''',
+                 (digest(request.cookies.get(COOKIE_NAME, '')),))
+    except psycopg.Error:
+        app.logger.exception('Guild session query failed')
+        return jsonify(error='Guild service temporarily unavailable'), 503
+    if not row or not row[0]:
+        return jsonify(error='Guild access not enabled; sign in again after configuration', needs_reauth=True), 409
+    cipher = token_cipher()
+    if not cipher:
+        return jsonify(error='OAuth token encryption not configured'), 503
+    try:
+        token = cipher.decrypt(row[0].encode('ascii')).decode('utf-8')
+    except (InvalidToken, ValueError):
+        return jsonify(error='Guild authorization expired; sign in again', needs_reauth=True), 409
+    try:
+        resp = httpx.get('https://discord.com/api/v10/users/@me/guilds',
+                         headers={'Authorization':'Bearer '+token}, timeout=8)
+        if resp.status_code in (401,403):
+            return jsonify(error='Discord authorization expired; sign in again',needs_reauth=True), 409
+        resp.raise_for_status()
+        guild_data = resp.json()
+        if not isinstance(guild_data,list):
+            raise ValueError('Invalid Discord response')
+    except (httpx.HTTPError,ValueError):
+        app.logger.warning('Discord guild request unavailable')
+        return jsonify(error='Discord guild service unavailable'), 502
+    allowed=[]
+    for g in guild_data[:200]:
+        try:
+            perms=int(g.get('permissions', '0'))
+            is_manager=bool(g.get('owner')) or bool(perms & 0x8) or bool(perms & 0x20)
+            if not is_manager:
+                continue
+            gid=str(g['id'])
+            if not gid.isdigit():
+                continue
+            icon_hash=g.get('icon')
+            allowed.append({'id':gid,'name':str(g.get('name','Сервер'))[:100],
+                            'icon_url':f'https://cdn.discordapp.com/icons/{gid}/{icon_hash}.png?size=96' if icon_hash else None,
+                            'owner':bool(g.get('owner')),'can_manage':True})
+        except (KeyError,TypeError,ValueError):
+            continue
+    result=jsonify(guilds=allowed, note='Shows Discord servers where you have Manage Server or Administrator permission. Bot presence is not verified.')
+    result.headers['Cache-Control']='no-store'
+    return result
 
 
 @app.get('/api/public/stats')
